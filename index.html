@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilha de Trade em Futuros</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        h1 {
+            margin: 0;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .tab-content {
+            display: none;
+            background-color: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 0 5px 5px 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        input, select {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin: 20px 0;
+        }
+        .summary-cards {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            width: 23%;
+            text-align: center;
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .card .value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .positive {
+            color: #27ae60;
+        }
+        .negative {
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Planilha de Trade em Futuros</h1>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" onclick="openTab(event, 'operacoes')">Operações</div>
+            <div class="tab" onclick="openTab(event, 'analise-capital')">Análise Capital</div>
+            <div class="tab" onclick="openTab(event, 'analise-setups')">Análise de Setups</div>
+            <div class="tab" onclick="openTab(event, 'analise-ativo')">Análise por Ativo</div>
+            <div class="tab" onclick="openTab(event, 'graficos')">Gráficos</div>
+        </div>
+
+        <!-- Aba Operações -->
+        <div id="operacoes" class="tab-content active">
+            <h2>Registro de Operações</h2>
+            <button onclick="addOperation()">Adicionar Operação</button>
+            <table id="operations-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Ativo</th>
+                        <th>Direção</th>
+                        <th>Valor Entrada ($)</th>
+                        <th>Preço Entrada</th>
+                        <th>Preço Saída</th>
+                        <th>Alavancagem</th>
+                        <th>Setup</th>
+                        <th>Taxa Entrada ($)</th>
+                        <th>Taxa Saída ($)</th>
+                        <th>Resultado ($)</th>
+                        <th>Resultado (%)</th>
+                        <th>Resultado Líquido ($)</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="operations-body">
+                    <!-- As operações serão adicionadas aqui via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Aba Análise Capital -->
+        <div id="analise-capital" class="tab-content">
+            <h2>Análise de Capital por Mês/Ano</h2>
+            <div class="summary-cards">
+                <div class="card">
+                    <h3>Capital Inicial</h3>
+                    <input type="number" id="initial-capital" value="10000" onchange="updateCapitalAnalysis()">
+                </div>
+                <div class="card">
+                    <h3>Resultado Total</h3>
+                    <div class="value" id="total-result">$0.00</div>
+                </div>
+                <div class="card">
+                    <h3>Drawdown Máximo</h3>
+                    <div class="value" id="max-drawdown">0%</div>
+                </div>
+                <div class="card">
+                    <h3>Taxas Totais</h3>
+                    <div class="value" id="total-fees">$0.00</div>
+                </div>
+            </div>
+            <table id="capital-analysis-table">
+                <thead>
+                    <tr>
+                        <th>Mês/Ano</th>
+                        <th>Resultado Mês ($)</th>
+                        <th>Resultado Capital Mês (%)</th>
+                        <th>Taxas Mês ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="capital-analysis-body">
+                    <!-- Os dados serão preenchidos via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Aba Análise de Setups -->
+        <div id="analise-setups" class="tab-content">
+            <h2>Análise de Performance por Setup</h2>
+            <table id="setups-table">
+                <thead>
+                    <tr>
+                        <th>Setup</th>
+                        <th>Operações</th>
+                        <th>WIN</th>
+                        <th>Loss</th>
+                        <th>WinRate %</th>
+                    </tr>
+                </thead>
+                <tbody id="setups-body">
+                    <!-- Os dados serão preenchidos via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Aba Análise por Ativo -->
+        <div id="analise-ativo" class="tab-content">
+            <h2>Análise de Performance por Ativo</h2>
+            <table id="assets-table">
+                <thead>
+                    <tr>
+                        <th>Ativo</th>
+                        <th>Operações</th>
+                        <th>Lucro Total ($)</th>
+                        <th>Prejuízo Total ($)</th>
+                        <th>Resultado ($)</th>
+                        <th>WinRate %</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-body">
+                    <!-- Os dados serão preenchidos via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Aba Gráficos -->
+        <div id="graficos" class="tab-content">
+            <h2>Gráficos de Performance</h2>
+            <div class="chart-container">
+                <canvas id="capital-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="monthly-performance-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="yearly-performance-chart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="drawdown-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<!-- Adicione estas 3 linhas ANTES do seu script principal -->
+	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+
+    <script>
+     // Configuração do Firebase (substitua com suas credenciais)
+     const firebaseConfig = {
+       apiKey: "SUA_API_KEY",
+       authDomain: "SEU_PROJETO.firebaseapp.com",
+       projectId: "SEU_PROJETO",
+       storageBucket: "SEU_PROJETO.appspot.com",
+       messagingSenderId: "SEU_SENDER_ID",
+       appId: "SEU_APP_ID"
+     };
+
+     // Inicialize o Firebase
+     firebase.initializeApp(firebaseConfig);
+     const db = firebase.firestore();
+     const auth = firebase.auth();
+
+     // Variáveis globais
+     let operations = [];
+     let currentUser = null;
+	 
+      // Inicialização
+	document.addEventListener('DOMContentLoaded', function() {
+     initCharts(); // Mantenha apenas isso - o carregamento agora é via loadOperations()
+	});
+		
+	// Observador de autenticação (coloque ANTES da função openTab)
+	auth.onAuthStateChanged(user => {
+		currentUser = user;
+	  if (user) {
+		console.log("Usuário logado:", user.email);
+		loadOperations(); // Carrega as operações do Firestore
+	  } else {
+		console.log("Usuário não logado");
+		window.location.href = "login.html"; // Redireciona para login
+		}
+	});	
+
+        // Funções de abas
+        function openTab(evt, tabName) {
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+
+            const tabs = document.getElementsByClassName('tab');
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+            
+            if (tabName === 'graficos') {
+                updateCharts();
+            }
+        }
+
+        + async function addOperation() {
+	if (!currentUser) return;
+
+   const newOperation = {
+     date: new Date().toISOString().split('T')[0],
+     asset: '',
+     direction: 'Long',
+     entryValue: 0,
+     entryPrice: 0,
+     exitPrice: 0,
+     leverage: 1,
+     setup: '',
+     entryFee: 0,
+     exitFee: 0
+   };
+
+   try {
+     await db.collection("users").doc(currentUser.uid)
+       .collection("operations").add(newOperation);
+   } catch (error) {
+     console.error("Erro ao adicionar:", error);
+   }
+ }
+
+        function updateOperation(id, field, value) {
+            const operation = operations.find(op => op.id === id);
+            if (operation) {
+                operation[field] = field === 'date' ? value : 
+                                 field === 'entryValue' || field === 'entryPrice' || field === 'exitPrice' || field === 'entryFee' || field === 'exitFee' ? parseFloat(value) :
+                                 field === 'leverage' ? parseInt(value) : value;
+                
+                saveToLocalStorage();
+                updateAllAnalyses();
+            }
+        }
+
+        function deleteOperation(id) {
+            operations = operations.filter(op => op.id !== id);
+            saveToLocalStorage();
+            renderOperations();
+            updateAllAnalyses();
+        }
+		
+		// Funções de Autenticação
+		async function login(email, password) {
+		try {
+		await auth.signInWithEmailAndPassword(email, password);
+		} catch (error) {
+		alert("Erro no login: " + error.message);
+	}
+	}
+
+		async function logout() {
+		await auth.signOut();
+	}
+
+		// Carrega operações do Firestore
+		async function loadOperations() {
+			if (!currentUser) return;
+  
+			const snapshot = await db.collection("users").doc(currentUser.uid)
+			.collection("operations").get();
+  
+			operations = snapshot.docs.map(doc => ({
+			id: doc.id,
+			...doc.data()
+	}));
+  
+		renderOperations();
+		updateAllAnalyses();
+}
+
+        function renderOperations() {
+            const tbody = document.getElementById('operations-body');
+            tbody.innerHTML = '';
+            
+            operations.forEach(op => {
+                const resultDollar = calculateResultDollar(op);
+                const resultPercent = calculateResultPercent(op, resultDollar);
+                const totalFees = calculateTotalFees(op);
+                const netResult = resultDollar - totalFees;
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td><input type="date" value="${op.date}" onchange="updateOperation(${op.id}, 'date', this.value)"></td>
+                    <td><input type="text" value="${op.asset}" onchange="updateOperation(${op.id}, 'asset', this.value)" placeholder="Ex: BTC, ETH"></td>
+                    <td>
+                        <select onchange="updateOperation(${op.id}, 'direction', this.value)">
+                            <option value="Long" ${op.direction === 'Long' ? 'selected' : ''}>Long</option>
+                            <option value="Short" ${op.direction === 'Short' ? 'selected' : ''}>Short</option>
+                        </select>
+                    </td>
+                    <td><input type="number" step="0.01" value="${op.entryValue}" onchange="updateOperation(${op.id}, 'entryValue', this.value)"></td>
+                    <td><input type="number" step="0.0001" value="${op.entryPrice}" onchange="updateOperation(${op.id}, 'entryPrice', this.value)"></td>
+                    <td><input type="number" step="0.0001" value="${op.exitPrice}" onchange="updateOperation(${op.id}, 'exitPrice', this.value)"></td>
+                    <td><input type="number" min="1" value="${op.leverage}" onchange="updateOperation(${op.id}, 'leverage', this.value)"></td>
+                    <td><input type="text" value="${op.setup}" onchange="updateOperation(${op.id}, 'setup', this.value)" placeholder="Ex: Romper de lateral"></td>
+                    <td><input type="number" step="0.01" value="${op.entryFee}" onchange="updateOperation(${op.id}, 'entryFee', this.value)" placeholder="0.00"></td>
+                    <td><input type="number" step="0.01" value="${op.exitFee}" onchange="updateOperation(${op.id}, 'exitFee', this.value)" placeholder="0.00"></td>
+                    <td class="${resultDollar >= 0 ? 'positive' : 'negative'}">${resultDollar.toFixed(2)}</td>
+                    <td class="${resultPercent >= 0 ? 'positive' : 'negative'}">${(resultPercent * 100).toFixed(2)}%</td>
+                    <td class="${netResult >= 0 ? 'positive' : 'negative'}">${netResult.toFixed(2)}</td>
+                    <td><button onclick="deleteOperation(${op.id})">Excluir</button></td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Cálculos
+        function calculateResultDollar(op) {
+            if (!op.entryPrice || !op.exitPrice || !op.entryValue) return 0;
+            
+            const priceDifference = op.direction === 'Long' ? 
+                (op.exitPrice - op.entryPrice) : 
+                (op.entryPrice - op.exitPrice);
+            
+            const positionSize = op.entryValue * op.leverage;
+            return positionSize * (priceDifference / op.entryPrice);
+        }
+
+        function calculateResultPercent(op, resultDollar) {
+            if (!op.entryValue || op.entryValue === 0) return 0;
+            return resultDollar / op.entryValue;
+        }
+
+        function calculateTotalFees(op) {
+            // Soma simples das taxas de entrada e saída
+            return (op.entryFee || 0) + (op.exitFee || 0);
+        }
+
+        // Análises
+        function updateAllAnalyses() {
+            updateCapitalAnalysis();
+            updateSetupsAnalysis();
+            updateAssetsAnalysis();
+        }
+
+        function updateCapitalAnalysis() {
+            const initialCapital = parseFloat(document.getElementById('initial-capital').value) || 0;
+            const monthlyData = {};
+            
+            // Agrupar por mês/ano
+            operations.forEach(op => {
+                const date = new Date(op.date);
+                const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+                
+                if (!monthlyData[monthYear]) {
+                    monthlyData[monthYear] = {
+                        result: 0,
+                        fees: 0
+                    };
+                }
+                
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                
+                monthlyData[monthYear].result += resultDollar - fees;
+                monthlyData[monthYear].fees += fees;
+            });
+            
+            // Calcular totais
+            let totalResult = 0;
+            let totalFees = 0;
+            let maxDrawdown = 0;
+            let runningCapital = initialCapital;
+            
+            Object.values(monthlyData).forEach(month => {
+                totalResult += month.result;
+                totalFees += month.fees;
+                
+                const capitalAfter = runningCapital + month.result;
+                const drawdown = (capitalAfter - runningCapital) / runningCapital;
+                if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+                
+                runningCapital = capitalAfter;
+            });
+            
+            // Atualizar cards
+            document.getElementById('total-result').textContent = `$${(initialCapital + totalResult).toFixed(2)}`;
+            document.getElementById('total-result').className = `value ${totalResult >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('max-drawdown').textContent = `${(maxDrawdown * 100).toFixed(2)}%`;
+            document.getElementById('max-drawdown').className = `value ${maxDrawdown >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('total-fees').textContent = `$${totalFees.toFixed(2)}`;
+            
+            // Atualizar tabela
+            const tbody = document.getElementById('capital-analysis-body');
+            tbody.innerHTML = '';
+            
+            Object.entries(monthlyData).sort((a, b) => {
+                const [aMonth, aYear] = a[0].split('/').map(Number);
+                const [bMonth, bYear] = b[0].split('/').map(Number);
+                return aYear !== bYear ? aYear - bYear : aMonth - bMonth;
+            }).forEach(([monthYear, data]) => {
+                const row = document.createElement('tr');
+                const resultPercent = data.result / initialCapital;
+                
+                row.innerHTML = `
+                    <td>${monthYear}</td>
+                    <td class="${data.result >= 0 ? 'positive' : 'negative'}">${data.result.toFixed(2)}</td>
+                    <td class="${resultPercent >= 0 ? 'positive' : 'negative'}">${(resultPercent * 100).toFixed(2)}%</td>
+                    <td>${data.fees.toFixed(2)}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateSetupsAnalysis() {
+            const setupData = {};
+            
+            // Coletar todos os setups únicos
+            operations.forEach(op => {
+                if (!setupData[op.setup]) {
+                    setupData[op.setup] = {
+                        operations: 0,
+                        wins: 0,
+                        losses: 0
+                    };
+                }
+            });
+            
+            // Contar operações por setup
+            operations.forEach(op => {
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                const netResult = resultDollar - fees;
+                
+                setupData[op.setup].operations++;
+                
+                if (netResult >= 0) {
+                    setupData[op.setup].wins++;
+                } else {
+                    setupData[op.setup].losses++;
+                }
+            });
+            
+            // Atualizar tabela
+            const tbody = document.getElementById('setups-body');
+            tbody.innerHTML = '';
+            
+            Object.entries(setupData).forEach(([setup, data]) => {
+                if (data.operations === 0) return;
+                
+                const winRate = data.wins / data.operations * 100;
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${setup}</td>
+                    <td>${data.operations}</td>
+                    <td>${data.wins}</td>
+                    <td>${data.losses}</td>
+                    <td class="${winRate >= 50 ? 'positive' : 'negative'}">${winRate.toFixed(2)}%</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateAssetsAnalysis() {
+            const assetData = {};
+            
+            // Coletar todos os ativos únicos
+            operations.forEach(op => {
+                if (!assetData[op.asset]) {
+                    assetData[op.asset] = {
+                        operations: 0,
+                        totalProfit: 0,
+                        totalLoss: 0
+                    };
+                }
+            });
+            
+            // Calcular resultados por ativo
+            operations.forEach(op => {
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                const netResult = resultDollar - fees;
+                
+                assetData[op.asset].operations++;
+                
+                if (netResult >= 0) {
+                    assetData[op.asset].totalProfit += netResult;
+                } else {
+                    assetData[op.asset].totalLoss += netResult;
+                }
+            });
+            
+            // Atualizar tabela
+            const tbody = document.getElementById('assets-body');
+            tbody.innerHTML = '';
+            
+            Object.entries(assetData).forEach(([asset, data]) => {
+                if (data.operations === 0) return;
+                
+                const totalResult = data.totalProfit + data.totalLoss;
+                const winRate = (data.totalProfit / Math.abs(data.totalProfit + data.totalLoss)) * 100;
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${asset}</td>
+                    <td>${data.operations}</td>
+                    <td class="positive">${data.totalProfit.toFixed(2)}</td>
+                    <td class="negative">${data.totalLoss.toFixed(2)}</td>
+                    <td class="${totalResult >= 0 ? 'positive' : 'negative'}">${totalResult.toFixed(2)}</td>
+                    <td class="${winRate >= 50 ? 'positive' : 'negative'}">${winRate.toFixed(2)}%</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Gráficos
+        let capitalChart, monthlyPerformanceChart, yearlyPerformanceChart, drawdownChart;
+
+        function initCharts() {
+            const ctx1 = document.getElementById('capital-chart').getContext('2d');
+            const ctx2 = document.getElementById('monthly-performance-chart').getContext('2d');
+            const ctx3 = document.getElementById('yearly-performance-chart').getContext('2d');
+            const ctx4 = document.getElementById('drawdown-chart').getContext('2d');
+            
+            capitalChart = new Chart(ctx1, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Performance do Capital' }
+                    }
+                }
+            });
+            
+            monthlyPerformanceChart = new Chart(ctx2, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Performance Mensal' }
+                    }
+                }
+            });
+            
+            yearlyPerformanceChart = new Chart(ctx3, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Performance Anual' }
+                    }
+                }
+            });
+            
+            drawdownChart = new Chart(ctx4, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Drawdown Histórico' }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            updateCapitalChart();
+            updateMonthlyPerformanceChart();
+            updateYearlyPerformanceChart();
+            updateDrawdownChart();
+        }
+
+        function updateCapitalChart() {
+            const initialCapital = parseFloat(document.getElementById('initial-capital').value) || 0;
+            const dates = [];
+            const capitalData = [];
+            let runningCapital = initialCapital;
+            
+            // Ordenar operações por data
+            const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // Ponto inicial
+            if (sortedOperations.length > 0) {
+                const firstDate = new Date(sortedOperations[0].date);
+                dates.push(firstDate.toISOString().split('T')[0]);
+                capitalData.push(initialCapital);
+            }
+            
+            // Acumular capital ao longo do tempo
+            sortedOperations.forEach(op => {
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                const netResult = resultDollar - fees;
+                runningCapital += netResult;
+                
+                dates.push(op.date);
+                capitalData.push(runningCapital);
+            });
+            
+            // Atualizar gráfico
+            capitalChart.data.labels = dates;
+            capitalChart.data.datasets = [{
+                label: 'Capital ($)',
+                data: capitalData,
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1,
+                fill: true
+            }];
+            capitalChart.update();
+        }
+
+        function updateMonthlyPerformanceChart() {
+            const monthlyData = {};
+            
+            // Agrupar por mês/ano
+            operations.forEach(op => {
+                const date = new Date(op.date);
+                const monthYear = `${date.getMonth() + 1}/${date.getFullYear()}`;
+                
+                if (!monthlyData[monthYear]) {
+                    monthlyData[monthYear] = 0;
+                }
+                
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                monthlyData[monthYear] += resultDollar - fees;
+            });
+            
+            // Ordenar por data
+            const sortedEntries = Object.entries(monthlyData).sort((a, b) => {
+                const [aMonth, aYear] = a[0].split('/').map(Number);
+                const [bMonth, bYear] = b[0].split('/').map(Number);
+                return aYear !== bYear ? aYear - bYear : aMonth - bMonth;
+            });
+            
+            // Preparar dados para o gráfico
+            const labels = sortedEntries.map(([monthYear]) => monthYear);
+            const data = sortedEntries.map(([_, result]) => result);
+            
+            // Atualizar gráfico
+            monthlyPerformanceChart.data.labels = labels;
+            monthlyPerformanceChart.data.datasets = [{
+                label: 'Resultado Mensal ($)',
+                data: data,
+                backgroundColor: data.map(val => val >= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)'),
+                borderColor: data.map(val => val >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)'),
+                borderWidth: 1
+            }];
+            monthlyPerformanceChart.update();
+        }
+
+        function updateYearlyPerformanceChart() {
+            const yearlyData = {};
+            
+            // Agrupar por ano
+            operations.forEach(op => {
+                const date = new Date(op.date);
+                const year = date.getFullYear();
+                
+                if (!yearlyData[year]) {
+                    yearlyData[year] = 0;
+                }
+                
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                yearlyData[year] += resultDollar - fees;
+            });
+            
+            // Ordenar por ano
+            const sortedEntries = Object.entries(yearlyData).sort((a, b) => a[0] - b[0]);
+            
+            // Preparar dados para o gráfico
+            const labels = sortedEntries.map(([year]) => year);
+            const data = sortedEntries.map(([_, result]) => result);
+            
+            // Atualizar gráfico
+            yearlyPerformanceChart.data.labels = labels;
+            yearlyPerformanceChart.data.datasets = [{
+                label: 'Resultado Anual ($)',
+                data: data,
+                backgroundColor: data.map(val => val >= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)'),
+                borderColor: data.map(val => val >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)'),
+                borderWidth: 1
+            }];
+            yearlyPerformanceChart.update();
+        }
+
+        function updateDrawdownChart() {
+            const initialCapital = parseFloat(document.getElementById('initial-capital').value) || 0;
+            const dates = [];
+            const drawdownData = [];
+            let runningCapital = initialCapital;
+            let peakCapital = initialCapital;
+            
+            // Ordenar operações por data
+            const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // Ponto inicial
+            if (sortedOperations.length > 0) {
+                const firstDate = new Date(sortedOperations[0].date);
+                dates.push(firstDate.toISOString().split('T')[0]);
+                drawdownData.push(0);
+            }
+            
+            // Calcular drawdown ao longo do tempo
+            sortedOperations.forEach(op => {
+                const resultDollar = calculateResultDollar(op);
+                const fees = calculateTotalFees(op);
+                const netResult = resultDollar - fees;
+                runningCapital += netResult;
+                
+                if (runningCapital > peakCapital) {
+                    peakCapital = runningCapital;
+                }
+                
+                const drawdown = (runningCapital - peakCapital) / peakCapital * 100;
+                
+                dates.push(op.date);
+                drawdownData.push(drawdown);
+            });
+            
+            // Atualizar gráfico
+            drawdownChart.data.labels = dates;
+            drawdownChart.data.datasets = [{
+                label: 'Drawdown (%)',
+                data: drawdownData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                fill: true,
+                tension: 0.1
+            }];
+            drawdownChart.update();
+        }
+
+        
+    </script>
+</body>
+</html>
