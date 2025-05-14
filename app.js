@@ -1,8 +1,11 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app); // ✅ Forma moderna (v9+)
+// Debug de inicialização
+console.log("Firebase Apps:", firebase.apps);
+if (!firebase.apps.length) {
+  console.error("Firebase não foi inicializado!");
+} else {
+  console.log("Firebase inicializado corretamente");
+  console.log("Auth object:", firebase.auth());
+}
 
 // Verificação de inicialização
 if (!firebase.apps.length) {
@@ -62,19 +65,21 @@ auth.onAuthStateChanged(user => {
 // ================== FUNÇÕES DE AUTENTICAÇÃO ================== //
 // 3️⃣ Função de login corrigida
 async function login() {
-  // ⚠️ Verificação extra de segurança
-  if (!auth) {
-    console.error("Auth não está disponível!");
-    return;
-  }
-
+  console.log("Função login chamada"); // Debug 1
+  
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  
+  console.log("Credenciais:", {email, password}); // Debug 2
+
   try {
-    await auth.signInWithEmailAndPassword(email, password);
-    window.location.href = "index.html"; // Redireciona se sucesso
+    console.log("Antes do signIn"); // Debug 3
+    const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+    console.log("Login bem-sucedido:", userCredential.user); // Debug 4
+    
+    // Redirecionamento explícito
+    window.location.href = "index.html";
   } catch (error) {
+    console.error("Erro completo:", error); // Debug 5
     document.getElementById('error-message').textContent = error.message;
   }
 }
@@ -307,5 +312,22 @@ document.addEventListener('DOMContentLoaded', function() {
   const logoutBtn = document.querySelector('.logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', logout);
+  }
+});
+
+// Configuração de listeners (garante que o DOM está carregado)
+document.addEventListener('DOMContentLoaded', () => {
+  console.log("DOM carregado"); // Debug 6
+  
+  // Verifica se está na página de login
+  if (document.getElementById('login-btn')) {
+    document.getElementById('login-btn').addEventListener('click', login);
+    console.log("Listener de login adicionado"); // Debug 7
+  }
+
+  // Verifica se está na página de registro
+  if (document.getElementById('register-btn')) {
+    document.getElementById('register-btn').addEventListener('click', register);
+    console.log("Listener de registro adicionado"); // Debug 8
   }
 });
