@@ -1,3 +1,16 @@
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app); // ✅ Forma moderna (v9+)
+
+// Verificação de inicialização
+if (!firebase.apps.length) {
+  console.error("Firebase não foi inicializado!");
+} else {
+  console.log("Firebase inicializado com sucesso", firebase.app());
+}
+
 // Configuração do Firebase (substitua com suas credenciais)
 const firebaseConfig = {
     apiKey: "AIzaSyC740BTceOaBZn-cLgJVAsxDkQf6m4yIcs",
@@ -8,10 +21,10 @@ const firebaseConfig = {
     appId: "1:881831434161:web:cc0f8c13ba4972daaf8f90"
   };
 
-// Inicialize o Firebase
-firebase.initializeApp(firebaseConfig);
+// 2. Inicialização dos serviços Firebase
+const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const auth = firebase.auth();
+const auth = firebase.auth(); // ← Agora auth está inicializado
 
 // Variáveis globais
 let operations = [];
@@ -47,16 +60,22 @@ auth.onAuthStateChanged(user => {
 });
 
 // ================== FUNÇÕES DE AUTENTICAÇÃO ================== //
+// 3️⃣ Função de login corrigida
 async function login() {
+  // ⚠️ Verificação extra de segurança
+  if (!auth) {
+    console.error("Auth não está disponível!");
+    return;
+  }
+
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const errorElement = document.getElementById('error-message');
-
+  
   try {
     await auth.signInWithEmailAndPassword(email, password);
+    window.location.href = "index.html"; // Redireciona se sucesso
   } catch (error) {
-    errorElement.textContent = error.message;
-    console.error("Erro no login:", error);
+    document.getElementById('error-message').textContent = error.message;
   }
 }
 
@@ -70,18 +89,27 @@ async function loginWithGoogle() {
   }
 }
 
+// 3. Função de registro corrigida
 async function register() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   const errorElement = document.getElementById('error-message');
 
   try {
+    // Verifique se auth está disponível
+    if (!auth) throw new Error("Firebase Auth não inicializado");
+    
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    // Cria a estrutura inicial no Firestore
+    
+    // Cria documento do usuário no Firestore
     await db.collection("users").doc(userCredential.user.uid).set({
       email: email,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    
+    console.log("Usuário criado com sucesso!");
+    window.location.href = "index.html"; // Redireciona após cadastro
+    
   } catch (error) {
     errorElement.textContent = error.message;
     console.error("Erro no registro:", error);
